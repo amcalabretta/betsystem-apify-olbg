@@ -10,6 +10,11 @@ const extractHomeAway = (homeAway) => {
 };
 
 
+const extractId = (link) => {
+    return link.split('event_id=')[1].trim();
+}
+
+
 const extractExactResult = (home, away, outcome) => {
     const winner = outcome.split('#')[0].trim();
     const result = outcome.split('#')[1].trim();
@@ -151,17 +156,17 @@ const extractOdd = (rawOdd) => {
 
 const stars = (width) => {
     switch (width) {
-        case 'width: 0%;':
+        case 'width: 0%':
             return 0;
-        case 'width: 20%;':
+        case 'width: 20%':
             return 1;
-        case 'width: 40%;':
+        case 'width: 40%':
             return 2;
-        case 'width: 60%;':
+        case 'width: 60%':
             return 3;
-        case 'width: 80%;':
+        case 'width: 80%':
             return 4;
-        case 'width: 100%;':
+        case 'width: 100%':
             return 5;
         default:
             return 0;
@@ -175,4 +180,4 @@ const experts = (experts) => {
 }
 
 
-module.exports = { extractHomeAway, extractPrediction, parseDate, tips, confidence, comments, stars, experts, extractOdd };
+module.exports = { extractHomeAway, extractPrediction, parseDate, tips, confidence, comments, stars, experts, extractOdd,extractId };

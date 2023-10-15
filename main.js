@@ -35,22 +35,23 @@ Apify.main(async () => {
     await puppeteer.injectJQuery(page);
     const rawEvents = await page.evaluate((currentDate) => {
         let rawEvents = [];
-        $('#tipsListingContainer-Match').find('.tip ').each((idx, row) => {
-            const sportId = $(row).attr('data-vc_sport_id');
-            if (sportId === '1') {
+        $('#tipsListingContainer-Match').find('.tip').each((idx, row) => {
+            const sport = $(row).find('.sprt').first().find('i').attr('class');
+            if (sport === 'i-sp-1') {//football
                 let evt = {};
-                evt.homeAway = $(row).find('.event-name').first().find('a.tn-trigger').text();//
-                evt.countryLeague = $(row).find('.event-league-name').first().text().trim();
-                evt.outcome = $(row).find('.selection-name ').find('a.tn-trigger').text();
-                evt.experts = $(row).find('.experts-count').text();
-                evt.market = $(row).find('.market-name').text();
-                evt.ts = $(row).find('.event-date').attr('content');
-                evt.odd = $(row).find('.odds').first().attr('odddecimal').trim();
-                evt.tips = $(row).find('.tips').first().text().trim();
-                evt.confidence = $(row).find('.confidence-count').first().text().trim();
-                evt.numComments = $(row).find('.comments-count-holder').first().text().trim();
-                evt.numStars = $(row).find('.sti').first().attr('style').trim();
-                evt.id = $(row).attr('data-vc_event_id')
+                evt.link = $(row).find('.h-rst-lnk').attr('href');
+                evt.homeAway = $(row).find('.h-rst-lnk').first().text().trim();
+                evt.countryLeague = $(row).find('.league').find('.h-ellipsis').text().trim();
+                evt.outcome = $(row).find('.slct').find('.h-rst-lnk').text().trim();
+                evt.experts = $(row).find('.slct').find('.exp').text().trim();
+                evt.market = $(row).find('.slct').find('.market').text().trim();
+                evt.ts = $(row).find('time').attr('content');
+                evt.odd = $(row).find('.odds').text().trim();
+                evt.tips = $(row).find('.tips').find('.h-ellipsis').first().text().trim();
+                evt.confidence = $(row).find('.tips').find('.data').text().trim();
+                evt.numComments = $(row).find('.tips').find('.cmts').text().trim();
+                evt.numStars = $(row).find('.rtng').find('.rating').find('.stars').find('.filled').attr('style').trim();
+                console.log(`[${evt.ts}] - ${evt.homeAway} - ${evt.countryLeague} -> ${evt.market}/${evt.outcome}, exp:${evt.experts}, odd:${evt.odd}, tips:${evt.tips} conf:${evt.confidence}, cmts:${evt.numComments}, stars:${evt.numStars}`);
                 rawEvents.push(evt);
             }
         });
@@ -59,6 +60,7 @@ Apify.main(async () => {
     log.info(` rawEvents:${rawEvents.length}`);
     const events = rawEvents.map((raw, idx) => {
         let rObj = raw;
+        rObj.id = helpers.extractId(rObj.link);
         rObj.payload = {};
         rObj.predictions = [];
         rObj.home = helpers.extractHomeAway(rObj.homeAway).h;
@@ -82,6 +84,8 @@ Apify.main(async () => {
         delete rObj.market;
         delete rObj.odd;
         delete rObj.numStars;
+        delete rObj.link;
+        
         return rObj;
     }).filter( ev => ev.predictions.length === 1);//only the ones with one prediction
     events.forEach((ev, idx, events) => {
