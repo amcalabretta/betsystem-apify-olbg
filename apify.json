@@ -1,6 +1,6 @@
 {
 	"name": "olbg-com",
-	"version": "0.6",
+	"version": "0.7",
 	"buildTag": "latest",
 	"env": null,
 	"template": "example_puppeteer_single_page"
