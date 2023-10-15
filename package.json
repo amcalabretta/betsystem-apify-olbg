@@ -1,0 +1,20 @@
+{
+	"name": "olbg-com",
+	"version": "0.6",
+	"description": "OLBG scraper",
+	"dependencies": {
+		"apify": "^2.0.7",
+		"puppeteer": "*",
+		"moment": "^2.29.1"
+	},
+	"scripts": {
+		"start": "node main.js",
+		"test": "nyc mocha"
+	},
+	"devDependencies": {
+		"mocha": "^8.3.0",
+		"nyc": "^15.1.0"
+	},
+	"author": "It's not you it's me",
+	"license": "ISC"
+}
