@@ -60,7 +60,7 @@ Apify.main(async () => {
     for (let i = 0; i < tipsterLinks.length; i++) {
         log.info(`[olbg] Going to ${tipsterLinks[i]}`);
         await page.goto(tipsterLinks[i]);
-        await sleep(10000);//load stuff?
+        await sleep(5000);//load stuff?
         const tipsSterEvents = await page.evaluate(async () => {
             const events = [];
             var mainList = document.getElementById('tipsterListingContainer');
@@ -100,12 +100,21 @@ Apify.main(async () => {
         });
         controller.rawEvents = controller.rawEvents.concat(tipsSterEvents);
     }
-    controller.events = controller.rawEvents.map(ev => {
+    controller.rawEvents = controller.rawEvents.map(ev => {
         const extId = crypto.createHash('md5').update(`${ev.koTime}_${ev.home}_${ev.away}`).digest('hex');
         return { ...ev, id: extId };
     });
+    const groupedEvents = new Map();
+    controller.rawEvents.forEach((rawEvent)=>{
+        const currentEvt = groupedEvents.get(rawEvent.id);
+        if (currentEvt) {//it's already there
+            currentEvt.predictions = currentEvt.predictions.concat(rawEvent.predictions);
+        } else {
+            groupedEvents.set(rawEvent.id,rawEvent);
+        }
+    });
     const output = {
-        data: controller.events
+        data: controller.rawEvents
     };
     await Apify.setValue('OUTPUT', JSON.stringify(output), { contentType: 'application/json; charset=utf-8' });
     let hrend = process.hrtime(hrstart);
