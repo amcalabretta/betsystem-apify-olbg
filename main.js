@@ -61,17 +61,22 @@ Apify.main(async () => {
         log.info(`[olbg] Going to ${tipsterLinks[i]}`);
         await page.goto(tipsterLinks[i]);
         await sleep(5000);//load stuff?
-        const tipsSterEvents = await page.evaluate(async () => {
+        const tsName = await page.evaluate(async () => {
+            return document.getElementsByClassName('pg-title')[0].innerText;
+        });
+        const tsId = helpers.getTipster(tipsterLinks[i]);
+        const tipsSterEvents = await page.evaluate(async (tipster) => {
             const events = [];
             var mainList = document.getElementById('tipsterListingContainer');
             var allEvents = mainList.getElementsByTagName('li');
-            for (let j = 0; j < allEvents.length; j++) {
+            for (let j = 0; j < allEvents.length; j++) {//per event
                 const match = { id: '', home: '', away: '', countryLeague: '', koTime: '', predictions: [] }
                 const controller = {
                     rawOutcome: allEvents[j].getElementsByTagName('h4')[0].innerText,
                     rawMarket: allEvents[j].getElementsByClassName('market')[0].innerText,
                     experts: 0,
-                    time: ''
+                    time: '',
+                    preds: []
                 }
                 if (allEvents[j].getElementsByClassName('h-rst-lnk') && allEvents[j].getElementsByClassName('h-rst-lnk').length > 0) {
                     const event = allEvents[j].getElementsByClassName('h-rst-lnk')[0].innerText;
@@ -89,34 +94,35 @@ Apify.main(async () => {
                 }
                 console.log(`[olbg]  - KO:${match.koTime} [${match.countryLeague}] ${match.home} vs ${match.away}`);
                 console.log(`[olbg]  - Finding predictions from ${controller.rawMarket}/${controller.rawOutcome}`);
-                const preds = await extractPrediction(match.home, match.away, controller.rawOutcome, controller.rawMarket);
-                preds.forEach((pred) => console.log(`[olbg]   - ${pred.market} / ${pred.outcome}`));
-                if (preds.length > 0) {
-                    match.predictions = preds;
-                    events.push(match);
-                }
-            }
-            return events;
-        });
-        controller.rawEvents = controller.rawEvents.concat(tipsSterEvents);
-    }
-    controller.rawEvents = controller.rawEvents.map(ev => {
-        const extId = crypto.createHash('md5').update(`${ev.koTime}_${ev.home}_${ev.away}`).digest('hex');
-        return { ...ev, id: extId };
-    });
-    const groupedEvents = new Map();
-    controller.rawEvents.forEach((rawEvent)=>{
-        const currentEvt = groupedEvents.get(rawEvent.id);
-        if (currentEvt) {//it's already there
-            currentEvt.predictions = currentEvt.predictions.concat(rawEvent.predictions);
-        } else {
-            groupedEvents.set(rawEvent.id,rawEvent);
+                controller.preds = await extractPrediction(match.home, match.away, controller.rawOutcome, controller.rawMarket);
+                controller.preds = controller.preds.map((pred) => {return { ...pred, tsName: tipster.tsName, tsId: tipster.tsId }});
+        controller.preds.forEach((pred) => console.log(`[olbg]   - ${pred.market} / ${pred.outcome}`));
+        if (controller.preds.length > 0) {
+            match.predictions = controller.preds;
+            events.push(match);
         }
-    });
-    const output = {
-        data: controller.rawEvents
-    };
-    await Apify.setValue('OUTPUT', JSON.stringify(output), { contentType: 'application/json; charset=utf-8' });
-    let hrend = process.hrtime(hrstart);
-    log.info(`Time:${hrend[0]} seconds and ${hrend[1] / 1000000} ms`)
+    }
+    return events;
+}, { tsName, tsId });
+controller.rawEvents = controller.rawEvents.concat(tipsSterEvents);
+    }
+controller.rawEvents = controller.rawEvents.map(ev => {
+    const extId = crypto.createHash('md5').update(`${ev.koTime}_${ev.home}_${ev.away}`).digest('hex');
+    return { ...ev, id: extId };
+});
+const groupedEvents = new Map();
+controller.rawEvents.forEach((rawEvent) => {
+    const currentEvt = groupedEvents.get(rawEvent.id);
+    if (currentEvt) {//it's already there
+        currentEvt.predictions = currentEvt.predictions.concat(rawEvent.predictions);
+    } else {
+        groupedEvents.set(rawEvent.id, rawEvent);
+    }
+});
+const output = {
+    data: controller.rawEvents
+};
+await Apify.setValue('OUTPUT', JSON.stringify(output), { contentType: 'application/json; charset=utf-8' });
+let hrend = process.hrtime(hrstart);
+log.info(`Time:${hrend[0]} seconds and ${hrend[1] / 1000000} ms`)
 });
