@@ -3,7 +3,7 @@ const helpers = require('./helpers');
 const { log } = Apify.utils;
 const { sleep } = Apify.utils;
 const moment = require('moment');
-
+const crypto = require('crypto');
 
 const { isDocker } = Apify.utils;
 const { puppeteer } = Apify.utils;
@@ -28,79 +28,84 @@ Apify.main(async () => {
         }
     });
     const page = await browser.newPage();
-    page.on('console', message =>
-        log.info(`${message.text()}`));
-    await page.goto('https://www.olbg.com/betting-tips/Football/1');
-    await sleep(10000);//load stuff?
+
+    page.on('console', message => {
+        const messageTxt = message.text();
+        if (messageTxt.includes('[olbg]')) log.info(`${message.text()}`);
+    });
+    await page.exposeFunction('parseExperts', helpers.experts);
+    await page.exposeFunction('parseCountryLeague', helpers.findCountryLeague);
+    await page.exposeFunction('extractHomeAway', helpers.extractHomeAway);
+    await page.exposeFunction('extractPrediction', helpers.extractPrediction);
+    await page.exposeFunction('parseDate', helpers.parseDate);
+
+
+    await page.goto('https://www.olbg.com/best-tipsters/Football/1');
+    await sleep(1000);//load stuff?
     await puppeteer.injectJQuery(page);
-    const rawEvents = await page.evaluate((currentDate) => {
-        let rawEvents = [];
-        $('#tipsListingContainer-Match').find('.tip').each((idx, row) => {
-            const sport = $(row).find('.sprt').first().find('i').attr('class');
-            if (sport === 'i-sp-1') {//football
-                let evt = {};
-                evt.link = $(row).find('.h-rst-lnk').attr('href');
-                evt.homeAway = $(row).find('.h-rst-lnk').first().text().trim();
-                evt.countryLeague = $(row).find('.league').find('.h-ellipsis').text().trim();
-                evt.outcome = $(row).find('.slct').find('.h-rst-lnk').text().trim();
-                evt.experts = $(row).find('.slct').find('.exp').text().trim();
-                evt.market = $(row).find('.slct').find('.market').text().trim();
-                evt.ts = $(row).find('time').attr('content');
-                evt.odd = $(row).find('.odds').text().trim();
-                evt.tips = $(row).find('.tips').find('.h-ellipsis').first().text().trim();
-                evt.confidence = $(row).find('.tips').find('.data').text().trim();
-                evt.numComments = $(row).find('.tips').find('.cmts').text().trim();
-                evt.numStars = $(row).find('.rtng').find('.rating').find('.stars').find('.filled').attr('style').trim();
-                console.log(`[${evt.ts}] - ${evt.homeAway} - ${evt.countryLeague} -> ${evt.market}/${evt.outcome}, exp:${evt.experts}, odd:${evt.odd}, tips:${evt.tips} conf:${evt.confidence}, cmts:${evt.numComments}, stars:${evt.numStars}`);
-                rawEvents.push(evt);
+    const controller = {
+        rawEvents: [],
+        events: []
+    }
+    const tipsterLinks = await page.evaluate(() => {
+        const links = [];
+        const allDivs = document.getElementsByClassName('tpstr');
+        for (let i = 0; i < allDivs.length; i++) {
+            const currentDiv = allDivs[i];
+            links.push(currentDiv.getElementsByClassName('h-rst-lnk')[0].href);
+        }
+        return links;
+    });
+    log.info(`[olbg] Found ${tipsterLinks.length} links`);
+    for (let i = 0; i < tipsterLinks.length; i++) {
+        log.info(`[olbg] Going to ${tipsterLinks[i]}`);
+        await page.goto(tipsterLinks[i]);
+        await sleep(10000);//load stuff?
+        const tipsSterEvents = await page.evaluate(async () => {
+            const events = [];
+            var mainList = document.getElementById('tipsterListingContainer');
+            var allEvents = mainList.getElementsByTagName('li');
+            for (let j = 0; j < allEvents.length; j++) {
+                const match = { id: '', home: '', away: '', countryLeague: '', koTime: '', predictions: [] }
+                const controller = {
+                    rawOutcome: allEvents[j].getElementsByTagName('h4')[0].innerText,
+                    rawMarket: allEvents[j].getElementsByClassName('market')[0].innerText,
+                    experts: 0,
+                    time: ''
+                }
+                if (allEvents[j].getElementsByClassName('h-rst-lnk') && allEvents[j].getElementsByClassName('h-rst-lnk').length > 0) {
+                    const event = allEvents[j].getElementsByClassName('h-rst-lnk')[0].innerText;
+                    const eventLink = allEvents[j].getElementsByClassName('h-rst-lnk')[0].href;
+                    match.countryLeague = await parseCountryLeague(event, eventLink);
+                    const { h, a } = await extractHomeAway(event);
+                    match.home = h;
+                    match.away = a;
+                }
+                if (allEvents[j].getElementsByClassName('exp') && allEvents[j].getElementsByClassName('exp').length > 0) {
+                    controller.experts = await parseExperts(allEvents[j].getElementsByClassName('exp')[0].innerText);
+                }
+                if (allEvents[j].getElementsByTagName('time').length > 0) {
+                    match.koTime = await parseDate(allEvents[j].getElementsByTagName('time')[0].getAttribute('content'));
+                }
+                console.log(`[olbg]  - KO:${match.koTime} [${match.countryLeague}] ${match.home} vs ${match.away}`);
+                console.log(`[olbg]  - Finding predictions from ${controller.rawMarket}/${controller.rawOutcome}`);
+                const preds = await extractPrediction(match.home, match.away, controller.rawOutcome, controller.rawMarket);
+                preds.forEach((pred) => console.log(`[olbg]   - ${pred.market} / ${pred.outcome}`));
+                if (preds.length > 0) {
+                    match.predictions = preds;
+                    events.push(match);
+                }
             }
+            return events;
         });
-        return rawEvents;
-    }, today);
-    log.info(` rawEvents:${rawEvents.length}`);
-    const events = rawEvents.map((raw, idx) => {
-        let rObj = raw;
-        rObj.id = helpers.extractId(rObj.link);
-        rObj.payload = {};
-        rObj.predictions = [];
-        rObj.home = helpers.extractHomeAway(rObj.homeAway).h;
-        rObj.away = helpers.extractHomeAway(rObj.homeAway).a;
-        rObj.predictions = helpers.extractPrediction(rObj.home, rObj.away, rObj.outcome, rObj.market);
-        rObj.koTime = rObj.ts;
-        rObj.payload.experts = helpers.experts(rObj.experts);
-        rObj.payload.odd = helpers.extractOdd(rObj.odd);
-        rObj.payload.numTips = helpers.tips(rObj.tips).num;
-        rObj.payload.totalTips = helpers.tips(rObj.tips).total;
-        rObj.payload.confidence = helpers.confidence(rObj.confidence);
-        rObj.payload.numComments = helpers.comments(rObj.numComments);
-        rObj.payload.stars = helpers.stars(rObj.numStars);
-        delete rObj.homeAway;
-        delete rObj.outcome;
-        delete rObj.ts;
-        delete rObj.tips;
-        delete rObj.confidence;
-        delete rObj.numComments;
-        delete rObj.experts;
-        delete rObj.market;
-        delete rObj.odd;
-        delete rObj.numStars;
-        delete rObj.link;
-        
-        return rObj;
-    }).filter( ev => ev.predictions.length === 1);//only the ones with one prediction
-    events.forEach((ev, idx, events) => {
-        //log.info(`[${ev.countryLeague}] ${ev.koTime} ${ev.home} vs ${ev.away} - Market:${ev.predictions[0].market}, Outcome:${ev.predictions[0].outcome}`);
-        log.info(`${idx + 1}/${events.length} ID: ${ev.id} - [${ev.countryLeague}] ${ev.koTime} ${ev.home} vs ${ev.away}`);
-        log.info(` - Predictions:${ev.predictions.length}`);
-        ev.predictions.forEach((pr)=>{
-            log.info(`   - Market:${pr.market} Outcome:${pr.outcome}`);
-            pr.payload = ev.payload;
-        });
-        log.info(` - Payload: Tips:${ev.payload.numTips}/${ev.payload.totalTips} confidence:${ev.payload.confidence} comments:${ev.payload.numComments} stars:${ev.payload.stars}`);
-        delete ev.payload;
+        controller.rawEvents = controller.rawEvents.concat(tipsSterEvents);
+    }
+    controller.events = controller.rawEvents.map(ev => {
+        const extId = crypto.createHash('md5').update(`${ev.koTime}_${ev.home}_${ev.away}`).digest('hex');
+        return { ...ev, id: extId };
     });
     const output = {
-        data: events
+        data: controller.events
     };
     await Apify.setValue('OUTPUT', JSON.stringify(output), { contentType: 'application/json; charset=utf-8' });
     let hrend = process.hrtime(hrstart);

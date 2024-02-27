@@ -11,11 +11,22 @@ describe('Helpers', () => {
         });
     });
 
+    describe('getTipster', () => {
+        it('should parse corretly ', () => {
+            assert.strictEqual(helpers.getTipster('https://www.olbg.com/best-tipsters/Football/1/511157'), 511157);
+        });
+    });
+
 
     describe('extractPrediction', () => {
         it('should parse corretly HDA (normal case)', () => {
             assert.strictEqual(helpers.extractPrediction('Augsburg', 'Darmstadt', 'Darmstadt', '')[0].outcome, 'A');
             assert.strictEqual(helpers.extractPrediction('Augsburg', 'Darmstadt', 'Darmstadt', '')[0].market, 'HDA');
+        });
+        // vs  rawMarket: outcome:
+        it('should parse corretly HDA (with FTR)', () => {
+            assert.strictEqual(helpers.extractPrediction('Wycombe', 'Cheltenham', 'Cheltenham', 'Full Time Result')[0].outcome, 'A');
+            assert.strictEqual(helpers.extractPrediction('Wycombe', 'Cheltenham', 'Cheltenham', 'Full Time Result')[0].market, 'HDA');
         });
         it('should parse corretly HDA (Draw)', () => {
             assert.strictEqual(helpers.extractPrediction('Coventry', 'Norwich', 'Draw', '')[0].outcome, 'D');
@@ -26,6 +37,19 @@ describe('Helpers', () => {
             assert.strictEqual(helpers.extractPrediction('Estoril', 'Benfica', 'Benfica #3-0', '')[0].market, 'EXR');
         });
 
+        it('should parse corretly U/O 2.5 (Over)', () => {
+            assert.strictEqual(helpers.extractPrediction('Wigan', 'Bolton', 'Over +2.50','Total Goals')[0].outcome, 'O');
+            assert.strictEqual(helpers.extractPrediction('Wigan', 'Bolton', 'Over +2.50','Total Goals')[0].market, 'UO25');
+        });
+    });
+
+    describe('findCountryLeague', () => {
+        it('should parse corretly (1)', () => {
+            assert.strictEqual(helpers.findCountryLeague('Galatasaray v Antalyaspor', 'https://www.olbg.com/betting-tips/Football/European_Competitions/Turkey_Super_Lig/Galatasaray_v_Antalyaspor/1?event_id=1760291'),'Turkey Super Lig');
+        });
+        it('should parse corretly (2)', () => {
+            assert.strictEqual(helpers.findCountryLeague('Wycombe v Cheltenham', 'https://www.olbg.com/betting-tips/Football/UK/England_League_One/Wycombe_v_Cheltenham/1?event_id=1760594'),'England League One');
+        });
     });
 
     describe('extractOdd', () => {

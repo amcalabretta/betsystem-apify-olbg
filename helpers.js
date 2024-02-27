@@ -8,7 +8,14 @@ const extractHomeAway = (homeAway) => {
         a: split[split.length - 1].trim()
     }
 };
-
+//assert.strictEqual(helpers.findCountryLeague('Galatasaray v Antalyaspor', 'https://www.olbg.com/betting-tips/Football/European_Competitions/Turkey_Super_Lig/Galatasaray_v_Antalyaspor/1?event_id=1760291'),'Turkey Super Lig');
+const findCountryLeague = (event, link) => {
+    const eventWithUnderScore = event.replaceAll(' ', '_');
+    const tokens = link.split(eventWithUnderScore);
+    const tokens1 = tokens[0].split('/');
+    const rawCl = tokens1[tokens1.length - 2];
+    return rawCl.replaceAll('_', ' ');
+}
 
 const extractId = (link) => {
     return link.split('event_id=')[1].trim();
@@ -27,8 +34,33 @@ const extractExactResult = (home, away, outcome) => {
 }
 
 const extractPrediction = (home, away, outcome, rawMarket) => {
-    log.info(` ${home} vs ${away} rawMarket:${rawMarket} outcome:${outcome}`);
+    //log.info(`[olbg]   -  ${home} vs ${away} rawMarket:${rawMarket} outcome:${outcome}`);
     switch (rawMarket) {
+        case 'Full Time Result':
+            if (outcome === 'Draw') return [{ market: 'HDA', outcome: 'D' }];
+            if (home === outcome) return [{ market: 'HDA', outcome: 'H' }];
+            if (away === outcome) return [{ market: 'HDA', outcome: 'A' }];
+        case 'Total Goals':
+            if (outcome === 'Over +2.50') return [{ market: 'UO25', outcome: 'O' }];
+        case 'Asian Hcap':
+            if (outcome === `${home} +1.50`) return [{ market: 'HDAH', outcome: 'H+1.50' }];
+            if (outcome === `${away} +1.50`) return [{ market: 'HDAH', outcome: 'A+1.50' }];
+            if (outcome === `${home} +1.00`) return [{ market: 'HDAH', outcome: 'H+1.00' }];
+            if (outcome === `${away} +1.00`) return [{ market: 'HDAH', outcome: 'A+1.00' }];
+            if (outcome === `${home} -1.00`) return [{ market: 'HDAH', outcome: 'H-1.00' }];
+            if (outcome === `${away} -1.00`) return [{ market: 'HDAH', outcome: 'A-1.00' }];
+            if (outcome === `${home} +1.25`) return [{ market: 'HDAH', outcome: 'H+1.25' }];
+            if (outcome === `${away} +1.25`) return [{ market: 'HDAH', outcome: 'A+1.25' }];
+            if (outcome === `${home} +0.50`) return [{ market: 'HDAH', outcome: 'H+0.50' }];
+            if (outcome === `${away} +0.50`) return [{ market: 'HDAH', outcome: 'A+0.50' }];
+            if (outcome === `${home} -0.75`) return [{ market: 'HDAH', outcome: 'H-0.75' }];
+            if (outcome === `${away} -0.75`) return [{ market: 'HDAH', outcome: 'A-0.75' }];
+            if (outcome === `${home} +0.75`) return [{ market: 'HDAH', outcome: 'H+0.75' }];
+            if (outcome === `${away} +0.75`) return [{ market: 'HDAH', outcome: 'A+0.75' }];
+            if (outcome === `${home} -0.50`) return [{ market: 'HDAH', outcome: 'H-0.50' }];
+            if (outcome === `${away} -0.50`) return [{ market: 'HDAH', outcome: 'A-0.50' }];
+            if (outcome === `${home} +0.25`) return [{ market: 'HDAH', outcome: 'H+0.25' }];
+            if (outcome === `${away} +0.25`) return [{ market: 'HDAH', outcome: 'A+0.25' }];
         case '':
             if (outcome === 'Draw') return [{ market: 'HDA', outcome: 'D' }];
             if (home === outcome) return [{ market: 'HDA', outcome: 'H' }];
@@ -118,7 +150,7 @@ const extractPrediction = (home, away, outcome, rawMarket) => {
             exHTResults[0].market = 'HTS';
             return exHTResults;
     }
-    return ret;
+    return [];
 };
 
 
@@ -153,6 +185,13 @@ const extractOdd = (rawOdd) => {
     const rawFloat = parseFloat(rawOdd);
     return Math.round(rawFloat * 100);
 }
+//https://www.olbg.com/best-tipsters/Football/1/511157 -> 511157
+const getTipster = (link) => {
+    const tokens = link.split('/');
+    const value = tokens[tokens.length-1];
+    if (isNaN(value)) return 0;
+    return parseInt(value);
+}
 
 const stars = (width) => {
     switch (width) {
@@ -180,4 +219,4 @@ const experts = (experts) => {
 }
 
 
-module.exports = { extractHomeAway, extractPrediction, parseDate, tips, confidence, comments, stars, experts, extractOdd,extractId };
+module.exports = { getTipster, findCountryLeague, extractHomeAway, extractPrediction, parseDate, tips, confidence, comments, stars, experts, extractOdd, extractId };
