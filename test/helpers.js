@@ -38,17 +38,17 @@ describe('Helpers', () => {
         });
 
         it('should parse corretly U/O 2.5 (Over)', () => {
-            assert.strictEqual(helpers.extractPrediction('Wigan', 'Bolton', 'Over +2.50','Total Goals')[0].outcome, 'O');
-            assert.strictEqual(helpers.extractPrediction('Wigan', 'Bolton', 'Over +2.50','Total Goals')[0].market, 'UO25');
+            assert.strictEqual(helpers.extractPrediction('Wigan', 'Bolton', 'Over +2.50', 'Total Goals')[0].outcome, 'O');
+            assert.strictEqual(helpers.extractPrediction('Wigan', 'Bolton', 'Over +2.50', 'Total Goals')[0].market, 'UO25');
         });
     });
 
     describe('findCountryLeague', () => {
         it('should parse corretly (1)', () => {
-            assert.strictEqual(helpers.findCountryLeague('Galatasaray v Antalyaspor', 'https://www.olbg.com/betting-tips/Football/European_Competitions/Turkey_Super_Lig/Galatasaray_v_Antalyaspor/1?event_id=1760291'),'Turkey Super Lig');
+            assert.strictEqual(helpers.findCountryLeague('Galatasaray v Antalyaspor', 'https://www.olbg.com/betting-tips/Football/European_Competitions/Turkey_Super_Lig/Galatasaray_v_Antalyaspor/1?event_id=1760291'), 'Turkey Super Lig');
         });
         it('should parse corretly (2)', () => {
-            assert.strictEqual(helpers.findCountryLeague('Wycombe v Cheltenham', 'https://www.olbg.com/betting-tips/Football/UK/England_League_One/Wycombe_v_Cheltenham/1?event_id=1760594'),'England League One');
+            assert.strictEqual(helpers.findCountryLeague('Wycombe v Cheltenham', 'https://www.olbg.com/betting-tips/Football/UK/England_League_One/Wycombe_v_Cheltenham/1?event_id=1760594'), 'England League One');
         });
     });
 
@@ -62,6 +62,30 @@ describe('Helpers', () => {
         });
     });
 
+    describe('confidence', () => {
+        it('should parse corretly', () => {
+            assert.strictEqual(helpers.confidence('4/11 Win Tips\n36%\n2 comments'), 4);
+        });
+
+    });
+
+    describe('tips', () => {
+        it('should parse correctly (1)', () => {
+            const res =  helpers.tips('5/11 Win Tips\n36%\n2 comments');
+            assert.strictEqual(res.num, 5);
+            assert.strictEqual(res.total, 11);
+            assert.strictEqual(res.percentage, 45);
+        });
+
+        it('should parse correctly (1)', () => {
+            const res =  helpers.tips('14/15 Win Tips\n36%\n2 comments');
+            assert.strictEqual(res.num, 14);
+            assert.strictEqual(res.total, 15);
+            assert.strictEqual(res.percentage, 93);
+        });
+
+    });
+    
     describe('extractExperts', () => {
         it('should parse corretly normal case', () => {
             assert.strictEqual(helpers.experts('1 expert'), 1);

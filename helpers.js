@@ -42,6 +42,8 @@ const extractPrediction = (home, away, outcome, rawMarket) => {
             if (away === outcome) return [{ market: 'HDA', outcome: 'A' }];
         case 'Total Goals':
             if (outcome === 'Over +2.50') return [{ market: 'UO25', outcome: 'O' }];
+            if (outcome === 'Under +2.50') return [{ market: 'UO25', outcome: 'U' }];
+
         case 'Asian Hcap':
             if (outcome === `${home} +1.50`) return [{ market: 'HDAH', outcome: 'H+1.50' }];
             if (outcome === `${away} +1.50`) return [{ market: 'HDAH', outcome: 'A+1.50' }];
@@ -165,10 +167,8 @@ const tips = (rawTips) => {
     let num = parseInt(splitD[0]);
     let splitK = splitD[1].split('Win');
     let total = parseInt(splitK[0]);
-    return {
-        num: num,
-        total: total
-    };
+    let percentage = parseInt(num*100/total);
+    return { num, total,percentage };
 };
 
 const confidence = (rawConfidence) => {
@@ -188,7 +188,7 @@ const extractOdd = (rawOdd) => {
 //https://www.olbg.com/best-tipsters/Football/1/511157 -> 511157
 const getTipster = (link) => {
     const tokens = link.split('/');
-    const value = tokens[tokens.length-1];
+    const value = tokens[tokens.length - 1];
     if (isNaN(value)) return 0;
     return parseInt(value);
 }

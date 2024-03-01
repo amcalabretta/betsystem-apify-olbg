@@ -38,7 +38,7 @@ Apify.main(async () => {
     await page.exposeFunction('extractHomeAway', helpers.extractHomeAway);
     await page.exposeFunction('extractPrediction', helpers.extractPrediction);
     await page.exposeFunction('parseDate', helpers.parseDate);
-
+    await page.exposeFunction('stars', helpers.stars);
 
     await page.goto('https://www.olbg.com/best-tipsters/Football/1');
     await sleep(1000);//load stuff?
@@ -68,6 +68,10 @@ Apify.main(async () => {
         const tipsSterEvents = await page.evaluate(async (tipster) => {
             const events = [];
             var mainList = document.getElementById('tipsterListingContainer');
+            if (!mainList) {
+                console.log(`[olbg] -  No events`);
+                return[];
+            }
             var allEvents = mainList.getElementsByTagName('li');
             for (let j = 0; j < allEvents.length; j++) {//per event
                 const match = { id: '', home: '', away: '', countryLeague: '', koTime: '', predictions: [] }
@@ -75,8 +79,16 @@ Apify.main(async () => {
                     rawOutcome: allEvents[j].getElementsByTagName('h4')[0].innerText,
                     rawMarket: allEvents[j].getElementsByClassName('market')[0].innerText,
                     experts: 0,
+                    winTips:0,
+                    allTips:0,
+                    numComments:0,
+                    stars:0,
                     time: '',
-                    preds: []
+                    preds: [],
+                    fact: ''
+                }
+                if (allEvents[j].getElementsByClassName('h-readable') && allEvents[j].getElementsByClassName('h-readable').length > 0) {
+                    controller.fact = allEvents[j].getElementsByClassName('h-readable')[0].innerText
                 }
                 if (allEvents[j].getElementsByClassName('h-rst-lnk') && allEvents[j].getElementsByClassName('h-rst-lnk').length > 0) {
                     const event = allEvents[j].getElementsByClassName('h-rst-lnk')[0].innerText;
@@ -92,37 +104,46 @@ Apify.main(async () => {
                 if (allEvents[j].getElementsByTagName('time').length > 0) {
                     match.koTime = await parseDate(allEvents[j].getElementsByTagName('time')[0].getAttribute('content'));
                 }
+                if (allEvents[j].getElementsByClassName('filled') && allEvents[j].getElementsByClassName('filled').length > 0) {
+                    controller.stars = await stars(allEvents[j].getElementsByClassName('filled')[0].getAttribute('style'));
+                }
+                // comments -> allEvents[0].getElementsByClassName('win')[0].innerText '4/11 Win Tips\n36%\n2 comments'
                 console.log(`[olbg]  - KO:${match.koTime} [${match.countryLeague}] ${match.home} vs ${match.away}`);
-                console.log(`[olbg]  - Finding predictions from ${controller.rawMarket}/${controller.rawOutcome}`);
+                console.log(`[olbg]  - Finding predictions from ${controller.rawMarket}/${controller.rawOutcome} (${controller.stars} stars and ${controller.experts} experts)`);
                 controller.preds = await extractPrediction(match.home, match.away, controller.rawOutcome, controller.rawMarket);
-                controller.preds = controller.preds.map((pred) => {return { ...pred, tsName: tipster.tsName, tsId: tipster.tsId }});
-        controller.preds.forEach((pred) => console.log(`[olbg]   - ${pred.market} / ${pred.outcome}`));
-        if (controller.preds.length > 0) {
-            match.predictions = controller.preds;
-            events.push(match);
+                controller.preds = controller.preds.map((pred) => { return { ...pred, payload: { tsName: tipster.tsName.replace('\nFootball Tips\nFollow', '').trim(), tsId: tipster.tsId, fact: controller.fact.trim(), experts: controller.experts } } });
+                controller.preds.forEach((pred) => console.log(`[olbg]   - ${pred.market} / ${pred.outcome}`));
+                if (controller.preds.length > 0) {
+                    match.predictions = controller.preds;
+                    events.push(match);
+                }
+            }
+            return events;
+        }, { tsName, tsId });
+        controller.rawEvents = controller.rawEvents.concat(tipsSterEvents);
+    }
+    controller.rawEvents = controller.rawEvents.map(ev => {
+        const extId = crypto.createHash('md5').update(`${ev.koTime}_${ev.home}_${ev.away}`).digest('hex');
+        return { ...ev, id: extId };
+    });
+    const groupedEvents = new Map();
+    controller.rawEvents.forEach((rawEvent) => {
+        const currentEvt = groupedEvents.get(rawEvent.id);
+        if (currentEvt) {//it's already there
+            currentEvt.predictions = currentEvt.predictions.concat(rawEvent.predictions);
+        } else {
+            groupedEvents.set(rawEvent.id, rawEvent);
         }
+    });
+    //group the events here.
+    for (let [key, value] of groupedEvents) {
+        log.info(`[olbg] ${key} [${value.koTime} ${value.countryLeague}] ${value.home} vs ${value.away} ${value.predictions.length}`);
+        controller.events.push(value);
     }
-    return events;
-}, { tsName, tsId });
-controller.rawEvents = controller.rawEvents.concat(tipsSterEvents);
-    }
-controller.rawEvents = controller.rawEvents.map(ev => {
-    const extId = crypto.createHash('md5').update(`${ev.koTime}_${ev.home}_${ev.away}`).digest('hex');
-    return { ...ev, id: extId };
-});
-const groupedEvents = new Map();
-controller.rawEvents.forEach((rawEvent) => {
-    const currentEvt = groupedEvents.get(rawEvent.id);
-    if (currentEvt) {//it's already there
-        currentEvt.predictions = currentEvt.predictions.concat(rawEvent.predictions);
-    } else {
-        groupedEvents.set(rawEvent.id, rawEvent);
-    }
-});
-const output = {
-    data: controller.rawEvents
-};
-await Apify.setValue('OUTPUT', JSON.stringify(output), { contentType: 'application/json; charset=utf-8' });
-let hrend = process.hrtime(hrstart);
-log.info(`Time:${hrend[0]} seconds and ${hrend[1] / 1000000} ms`)
+    const output = {
+        data: controller.events
+    };
+    await Apify.setValue('OUTPUT', JSON.stringify(output), { contentType: 'application/json; charset=utf-8' });
+    let hrend = process.hrtime(hrstart);
+    log.info(`Time:${hrend[0]} seconds and ${hrend[1] / 1000000} ms`)
 });
