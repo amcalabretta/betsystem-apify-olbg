@@ -39,6 +39,7 @@ Apify.main(async () => {
     await page.exposeFunction('extractPrediction', helpers.extractPrediction);
     await page.exposeFunction('parseDate', helpers.parseDate);
     await page.exposeFunction('stars', helpers.stars);
+    await page.exposeFunction('tips', helpers.tips);
 
     await page.goto('https://www.olbg.com/best-tipsters/Football/1');
     await sleep(1000);//load stuff?
@@ -70,7 +71,7 @@ Apify.main(async () => {
             var mainList = document.getElementById('tipsterListingContainer');
             if (!mainList) {
                 console.log(`[olbg] -  No events`);
-                return[];
+                return [];
             }
             var allEvents = mainList.getElementsByTagName('li');
             for (let j = 0; j < allEvents.length; j++) {//per event
@@ -79,10 +80,11 @@ Apify.main(async () => {
                     rawOutcome: allEvents[j].getElementsByTagName('h4')[0].innerText,
                     rawMarket: allEvents[j].getElementsByClassName('market')[0].innerText,
                     experts: 0,
-                    winTips:0,
-                    allTips:0,
-                    numComments:0,
-                    stars:0,
+                    winTips: 0,
+                    allTips: 0,
+                    percentage: 0,
+                    numComments: 0,
+                    stars: 0,
                     time: '',
                     preds: [],
                     fact: ''
@@ -107,11 +109,20 @@ Apify.main(async () => {
                 if (allEvents[j].getElementsByClassName('filled') && allEvents[j].getElementsByClassName('filled').length > 0) {
                     controller.stars = await stars(allEvents[j].getElementsByClassName('filled')[0].getAttribute('style'));
                 }
+
+                if (allEvents[j].getElementsByClassName('win') && allEvents[j].getElementsByClassName('win').length > 0) {
+                    const { num, total, percentage, comments } = await tips(allEvents[j].getElementsByClassName('win')[0].innerText);
+                    controller.allTips = total;
+                    controller.winTips = num;
+                    controller.percentage = percentage;
+                    controller.numComments = comments;
+                }
+
                 // comments -> allEvents[0].getElementsByClassName('win')[0].innerText '4/11 Win Tips\n36%\n2 comments'
                 console.log(`[olbg]  - KO:${match.koTime} [${match.countryLeague}] ${match.home} vs ${match.away}`);
-                console.log(`[olbg]  - Finding predictions from ${controller.rawMarket}/${controller.rawOutcome} (${controller.stars} stars and ${controller.experts} experts)`);
+                console.log(`[olbg]  - Finding predictions from ${controller.rawMarket}/${controller.rawOutcome} (${controller.stars} stars, ${controller.experts} experts ${controller.winTips} tips out of ${controller.allTips} (${controller.percentage} %) comments:${controller.numComments})`);
                 controller.preds = await extractPrediction(match.home, match.away, controller.rawOutcome, controller.rawMarket);
-                controller.preds = controller.preds.map((pred) => { return { ...pred, payload: { tsName: tipster.tsName.replace('\nFootball Tips\nFollow', '').trim(), tsId: tipster.tsId, fact: controller.fact.trim(), experts: controller.experts } } });
+                controller.preds = controller.preds.map((pred) => { return { ...pred, payload: { tsName: tipster.tsName.replace('\nFootball Tips\nFollow', '').trim(), tsId: tipster.tsId, fact: controller.fact.trim(), experts: controller.experts, winTips: controller.winTips, allTips: controller.allTips,percentage:controller.percentage,comments:controller.numComments,stars:controller.stars } } });
                 controller.preds.forEach((pred) => console.log(`[olbg]   - ${pred.market} / ${pred.outcome}`));
                 if (controller.preds.length > 0) {
                     match.predictions = controller.preds;
@@ -143,7 +154,8 @@ Apify.main(async () => {
     const output = {
         data: controller.events
     };
-    await Apify.setValue('OUTPUT', JSON.stringify(output), { contentType: 'application/json; charset=utf-8' });
+    const kvName = `olbg-com-${moment().format('YYYY-MM-DD-HH-mm-SS')}`;//yyyy-MM-dd
+    await Apify.setValue(kvName, JSON.stringify(output), { contentType: 'application/json; charset=utf-8' });
     let hrend = process.hrtime(hrstart);
     log.info(`Time:${hrend[0]} seconds and ${hrend[1] / 1000000} ms`)
 });

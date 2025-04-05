@@ -167,8 +167,15 @@ const tips = (rawTips) => {
     let num = parseInt(splitD[0]);
     let splitK = splitD[1].split('Win');
     let total = parseInt(splitK[0]);
-    let percentage = parseInt(num*100/total);
-    return { num, total,percentage };
+    let percentage = parseInt(num * 100 / total);
+    const comments = splitK[1].split('comments')[0].split('\n');
+    if (isNaN(comments[comments.length - 1].trim())) {
+        return { num, total, percentage, comments: 0 };
+    } else {
+        return { num, total, percentage, comments: parseInt(comments[comments.length - 1].trim()) };
+    }
+
+
 };
 
 const confidence = (rawConfidence) => {
